@@ -2,8 +2,10 @@
 #              It serves as a template for users to implement their own processing code.
 #              The script is designed to minimize dependencies.
 import tkinter as tk
+from base64 import b64decode
 from tkinter import Toplevel, PhotoImage, Canvas
 import base64
+import datetime
 import socket
 import time
 import math
@@ -14,7 +16,7 @@ from threading import Thread, current_thread
 from PIL import Image, ImageDraw, ImageTk, ImageColor
 
 # Configuration
-DEFAULT_IP_ADDRESS = '192.168.136.160'  # IP address
+DEFAULT_IP_ADDRESS = '172.16.1.142/'  # IP address
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -330,8 +332,29 @@ class App:
 
         # Task 4:
         # ...
-        
-        self.show_image(match_data, color_image)
+        self.save_checkpoint(match_data, color_image, "checkpoints")
+        #self.show_image(match_data, color_image)
+
+    def save_checkpoint(self, match_data: dict, color_image: Image, path: str) -> None:
+        """
+        take the current taken match data and image and save it to a file to speed-up processing tests
+        :param match_data: the dict containg the bounding boxes and pixel data for each match
+        :param color_image: the raw image in color
+        :param path: folder to path to store the images to
+        :return:
+        """
+        self.print_to_text_box(f"Saving checkpoint")
+        timestamp = datetime.datetime.now()
+        dict_filename = f"{path}/{timestamp::%Y-%m-%d_%H:%M}-matchdata.json"
+        img_filename = f"{path}/{timestamp::%Y-%m-%d_%H:%M}-match.png"
+
+        with open(dict_filename, "w") as f:
+            json.dump(match_data, f)
+
+        image_data = base64.b64decode(color_image)
+        # Create a PhotoImage object
+        photo = PhotoImage(data=image_data)
+        photo.write(img_filename, format='png')
 
 if __name__ == '__main__':
     # Construct GUI and run
