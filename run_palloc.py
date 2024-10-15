@@ -188,7 +188,7 @@ class App:
         feedback_dict = json.loads(feedback_str)
         return feedback_dict
     
-    def draw_rotated_rectangle(self, draw, x, y, width, height, rotation, outline="red", width_line=1):
+    def draw_rotated_rectangle(self, draw, x, y, width, height, rotation, outline="red", width_line=3):
         # Calculate the coordinates of the corners based on the center point
         corners = [
             (x - width / 2, y - height / 2),  # Top-left corner
@@ -254,7 +254,7 @@ class App:
             rotation = bbox["rotation"]
             self.draw_rotated_rectangle(temp_draw, x, y, width, height, rotation, outline=color)
 
-            # Draw regions for each match
+            """# Draw regions for each match
             region = match_info["bbox"]["region"]
             segmentsXStart = region["segmentsXStart"]
             segmentsXStop = region["segmentsXStop"]
@@ -263,10 +263,10 @@ class App:
                 for i in range(start, stop):
                     # Draw the line with transparency on the temporary image
                     temp_draw.line((i, y, i + 1, y), fill=rgba_color, width=1)
-
+            """
             # Composite the temporary image onto the canvas image
             canvas_image = Image.alpha_composite(canvas_image, temp_image)
-
+            
         # Convert the canvas image to PhotoImage and display it
         overlay_image = ImageTk.PhotoImage(canvas_image)
         self.canvas.create_image(0, 0, anchor=tk.NW, image=overlay_image)
@@ -356,14 +356,51 @@ class App:
             ]
 
             region = match['bbox']['region']
-            closest_pixels = [None, None, None, None]
-            for pixel in region:
-                segments_x_start = pixel['segmentsXStart']
-                segments_x_stop = pixel['segmentsXStop']
-                segments_y = pixel['segmentsY']
-                for start, stop, y in zip(segments_x_start, segments_x_stop, segments_y):
-                    coordinate_0 = (start, y)
-                    coordinate_1 = (stop, y)
+
+            segments_y = region['segmentsY']
+            segments_x_start = region['segmentsXStart']
+            segments_x_stop = region['segmentsXStart']
+
+            max_y = segments_y[-1]
+            min_y = segments_y[0]
+            max_x = segments_x_stop[-1]
+            min_x = segments_x_start[-1]
+
+            coordinates = [[min_x, max_y], [max_x, max_y], [(max_x+min_x)/2, max_y], [(segments_x_start[0] + segments_x_stop[0])/2, min_y]]
+
+            for start, stop, y in zip(segments_x_start, segments_x_stop, segments_y):
+                if (start < coordinates[0][0]):
+                    coordinates[0] = [start, y]
+    
+                if (stop > coordinates[1][0]):
+                    coordinates[1] = [stop, y]
+            
+            dx = coordinates[1][0] - coordinates[2][0]
+            dy = coordinates[2][1] - coordinates[1][1]
+
+            print(f'dx1: {dx}')
+            print(f'dy1: {dy}')
+            
+            rotation = -math.atan2(dy,dx)
+            width = math.sqrt(dx**2 + dy**2)
+            
+            dx = coordinates[2][0] - coordinates[0][0] 
+            dy = coordinates[2][1] - coordinates[0][1]
+
+            print(f'dx2: {dx}')
+            print(f'dy2: {dy}')
+
+            height = math.sqrt(dx**2 + dy**2)
+            
+            bbox['height'] = height
+            bbox['width'] = width
+            bbox['rotation'] = rotation
+            print(f'Height: {height}')
+            print(f'Width: {width}')
+            print(f'Rotation: {rotation}')
+
+             
+        
 
         # Task 2:
         # Correlate the derived 2D rectangles with the 3D bounding
