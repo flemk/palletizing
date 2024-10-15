@@ -6,6 +6,7 @@ from base64 import b64decode
 from tkinter import Toplevel, PhotoImage, Canvas
 import base64
 import datetime
+import os
 import socket
 import time
 import math
@@ -17,6 +18,7 @@ from PIL import Image, ImageDraw, ImageTk, ImageColor
 
 # Configuration
 DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
+DEFAULT_FILE_PATH = "/path/to/file"
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -61,6 +63,7 @@ class App:
         self.run_once_button.pack(side=tk.LEFT)
 
         self.file_path = tk.Entry(self.bottom_frame)
+        self.file_path.insert(DEFAULT_FILE_PATH)
         self.file_path.pack(side=tk.LEFT)
 
         self.load_file = tk.Button(self.bottom_frame, text="load file", command=self.load_from_file)
@@ -238,7 +241,7 @@ class App:
         # Draw rectangles and regions for each match
         for match_id, match_info in match_data.items():
             # Create a temporary image for blending each region
-            match_id = int(match_id)
+            match_id = int(match_id)  # somehow the json dumping and loading screws up on this key
             temp_image = Image.new("RGBA", (photo.width(), photo.height()), (0, 0, 0, 0))
             temp_draw = ImageDraw.Draw(temp_image, "RGBA")
 
@@ -413,7 +416,7 @@ class App:
         # Task 4:
         # ...
         if not self.loading:
-            self.save_checkpoint(match_data, color_image, "checkpoints")
+            self.save_checkpoint(match_data, color_image, f"{os.getcwd()}/checkpoints")
         self.show_image(match_data, color_image)
 
     def save_checkpoint(self, match_data: dict, color_image: Image, path: str) -> None:
@@ -424,10 +427,14 @@ class App:
         :param path: folder to path to store the images to
         :return:
         """
-        self.print_to_text_box(f"Saving checkpoint")
+        self.print_to_text_box(f"Saving checkpoints to {path}")
         timestamp = datetime.datetime.now()
         dict_filename = f"{path}/{timestamp:%Y-%m-%d_%H:%M}-match.json"
         img_filename = f"{path}/{timestamp:%Y-%m-%d_%H:%M}-match.png"
+
+        if not os.path.isdir(path):
+            os.mkdir(path)
+            print(f"creating 'checkpoints' directory at {path}")
 
         with open(dict_filename, "w") as f:
             json.dump(match_data, f)
