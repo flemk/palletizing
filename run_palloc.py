@@ -38,7 +38,6 @@ BUFFER_SIZE = 1024  # Buffer size for socket communication
 # Actual Program
 class App:
     def __init__(self, master):
-        
         # GUI configuration
         self.master = master
         self.image_window = None
@@ -113,7 +112,6 @@ class App:
         self.send_and_receive(my_socket, DISABLE_GENERAL_ROTATION_MESSAGE)
         self.print_to_text_box("")  # Blank row
 
-
     def run_loop(self, ip, run_once=False):
         # Thread running as long as the Run toggle is set.
         my_socket = None
@@ -154,7 +152,6 @@ class App:
                 
         self.run_once_button.config(state=tk.NORMAL)
 
-
     def receive_data(self, my_socket):
         data = b''
         while True:
@@ -179,7 +176,6 @@ class App:
         feedback_dict = json.loads(feedback_str)
         return feedback_dict
     
-
     def draw_rotated_rectangle(self, draw, x, y, width, height, rotation, outline="red", width_line=1):
         # Calculate the coordinates of the corners based on the center point
         corners = [
@@ -200,7 +196,6 @@ class App:
 
         # Draw the rotated rectangle as a polygon without filling
         draw.polygon(rotated_corners, outline=outline, width=width_line)
-    
 
     def show_image(self, match_data, base64_image_data):
         # Decode the base64 image data
@@ -310,7 +305,6 @@ class App:
         # Process the match data
         self.process_match_data(match_data, color_image)
 
-    
     def process_match_data(self, match_data, color_image):
         # Put your processing code here...
         
