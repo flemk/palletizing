@@ -343,7 +343,7 @@ class App:
             nominator = math.sqrt((x_2 - y_1) ** 2 + (x_2 - x_1) ** 2)
 
             return denominator / nominator
-
+    
         for _, match in match_data.items():
             bbox = match['bbox']['rectangle']
             height = bbox['height']
@@ -402,7 +402,22 @@ class App:
             print(f'Width: {width}')
             print(f'Rotation: {rotation}')
 
-             
+        def find_intersects(match_data):
+            self.overlapps = {}
+            box_len = len(match_data)
+            for i in range(box_len-1):
+                x1 = match_data[i]['x'] 
+                y1 = match_data[i]['y']
+                width1 = match_data[i]['width']
+                height1 = match_data[i]['height']
+                for j in range(i+1, box_len-1):
+                    x2 = match_data[j]['x']
+                    y2 = match_data[j]['y']
+                    width2 = match_data[j]['width']
+                    height2 = match_data[j]['height']
+
+
+
         
 
         # Task 2:
