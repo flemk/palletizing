@@ -2,8 +2,10 @@
 #              It serves as a template for users to implement their own processing code.
 #              The script is designed to minimize dependencies.
 import tkinter as tk
+from base64 import b64decode
 from tkinter import Toplevel, PhotoImage, Canvas
 import base64
+import datetime
 import socket
 import time
 import math
@@ -14,7 +16,7 @@ from threading import Thread, current_thread
 from PIL import Image, ImageDraw, ImageTk, ImageColor
 
 # Configuration
-DEFAULT_IP_ADDRESS = '192.168.136.160'  # IP address
+DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -58,6 +60,12 @@ class App:
         self.run_once_button = tk.Button(self.bottom_frame, text="Run", command=self.run_once)
         self.run_once_button.pack(side=tk.LEFT)
 
+        self.file_path = tk.Entry(self.bottom_frame)
+        self.file_path.pack(side=tk.LEFT)
+
+        self.load_file = tk.Button(self.bottom_frame, text="load file", command=self.load_from_file)
+        self.load_file.pack(side=tk.LEFT)
+
         self.ip_entry = tk.Entry(self.bottom_frame)
         self.ip_entry.insert(0, DEFAULT_IP_ADDRESS)
         self.ip_entry.pack(side=tk.RIGHT)
@@ -67,7 +75,8 @@ class App:
 
         self.text_box = tk.Text(self.frame)
         self.text_box.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
-        
+        self.loading = False # set to True later when loading from a file
+
     def toggle_run(self):
         # Called when Run toggle is pressed
         if self.run.get():
@@ -77,9 +86,12 @@ class App:
 
     def run_once(self):
         # Called when Run Once button is pressed
+        self.loading = False
         ip = self.ip_entry.get()
         self.thread = Thread(target=self.run_loop, args=(ip, True))
         self.thread.start()
+
+
 
     def print_to_text_box(self, text):
         # Print text to GUI
@@ -226,6 +238,7 @@ class App:
         # Draw rectangles and regions for each match
         for match_id, match_info in match_data.items():
             # Create a temporary image for blending each region
+            match_id = int(match_id)
             temp_image = Image.new("RGBA", (photo.width(), photo.height()), (0, 0, 0, 0))
             temp_draw = ImageDraw.Draw(temp_image, "RGBA")
 
@@ -330,8 +343,41 @@ class App:
 
         # Task 4:
         # ...
-        
+        if not self.loading:
+            self.save_checkpoint(match_data, color_image, "checkpoints")
         self.show_image(match_data, color_image)
+
+    def save_checkpoint(self, match_data: dict, color_image: Image, path: str) -> None:
+        """
+        take the current taken match data and image and save it to a file to speed-up processing tests
+        :param match_data: the dict containg the bounding boxes and pixel data for each match
+        :param color_image: the raw image in color
+        :param path: folder to path to store the images to
+        :return:
+        """
+        self.print_to_text_box(f"Saving checkpoint")
+        timestamp = datetime.datetime.now()
+        dict_filename = f"{path}/{timestamp:%Y-%m-%d_%H:%M}-match.json"
+        img_filename = f"{path}/{timestamp:%Y-%m-%d_%H:%M}-match.png"
+
+        with open(dict_filename, "w") as f:
+            json.dump(match_data, f)
+
+        image_data = base64.b64decode(color_image)
+        # Create a PhotoImage object
+        photo = PhotoImage(data=image_data)
+        photo.write(img_filename, format='png')
+
+    def load_from_file(self):
+        self.loading = True
+        # load canvas image from file
+        base_path = self.file_path.get().split('.')[0]
+        with open(f'{base_path}.png', 'rb') as f:
+            b64val = base64.b64encode(f.read())
+        with open(f"{base_path}.json", 'r') as f:
+            match_data = json.load(f)
+
+        self.process_match_data(match_data, b64val)
 
 if __name__ == '__main__':
     # Construct GUI and run
