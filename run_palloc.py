@@ -332,7 +332,39 @@ class App:
         # Note:
         # The bounding box and the region may overlap, making it challenging to
         # identify the pixels that belong to the top side of each match.
-        
+        def distance_point_to_line(x_0, y_0, x_1, y_1, x_2, y_2):
+            ''' x_0, y_0: point 
+            x_1, y_1: line point start
+            x_2, y_2: line point end '''
+            denominator = abs((y_2 - y_1) * x_0 - (x_2 - x_1) * y_0 + x_2 * y_1 - y_2 * x_1)
+            nominator = math.sqrt((x_2 - y_1) ** 2 + (x_2 - x_1) ** 2)
+
+            return denominator / nominator
+
+        for _, match in match_data.items():
+            bbox = match['bbox']['rectangle']
+            height = bbox['height']
+            width = bbox['width']
+            bbox_x = bbox['x']
+            bbox_y = bbox['y']
+
+            box_outline_coordinates = [
+                (bbox_x - width / 2, bbox_y + height / 2),
+                (bbox_x + width / 2, bbox_y + height / 2),
+                (bbox_x - width / 2, bbox_y - height / 2),
+                (bbox_x + width / 2, bbox_y - height / 2),
+            ]
+
+            region = match['bbox']['region']
+            closest_pixels = [None, None, None, None]
+            for pixel in region:
+                segments_x_start = pixel['segmentsXStart']
+                segments_x_stop = pixel['segmentsXStop']
+                segments_y = pixel['segmentsY']
+                for start, stop, y in zip(segments_x_start, segments_x_stop, segments_y):
+                    coordinate_0 = (start, y)
+                    coordinate_1 = (stop, y)
+
         # Task 2:
         # Correlate the derived 2D rectangles with the 3D bounding
         # boxes and prepare for providing correctly rotated pick positions.
