@@ -12,13 +12,15 @@ import time
 import math
 import select
 import json
+from box import Box
+from util import Vec2
 from threading import Thread, current_thread
 # If the Pillow library is not installed, run the following command: "pip install pillow"
 from PIL import Image, ImageDraw, ImageTk, ImageColor
 
 # Configuration
 DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
-DEFAULT_FILE_PATH = "D://main/project/github/palletizing/checkpoints/2024-10-16_14_47-match.json"
+DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/three_boxes.png"
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -133,6 +135,15 @@ class App:
 
         self.bbox_overlaps = {}
         self.pre_processed_corners = {}
+        self.calculated_boxes = {}
+
+    def get_boxes(self):
+        boxes = []
+        for _, box in self.calculated_boxes:
+            center = Vec2(box['x'], box['y'])
+            dimensions = Vec2(box['width'], box['height'])
+            boxes.append(Box(center, dimensions, box['z'], box['rotation']))
+        return boxes
 
     def toggle_run(self):
         # Called when Run toggle is pressed
@@ -306,11 +317,12 @@ class App:
             bbox = match_info["bbox"]["rectangle"]
             x = bbox["x"]
             y = bbox["y"]
+            # TODO: maybe delete the following line
+            bbox = self.calculated_boxes[match_id]
             width = bbox["width"]
             height = bbox["height"]
             rotation = bbox["rotation"]
             self.draw_rotated_rectangle(temp_draw, x, y, width, height, rotation, outline=color)
-
             # Draw regions for each match
             region = match_info["bbox"]["region"]
             coordinates = self.pre_processed_corners[match_id]
@@ -541,7 +553,7 @@ class App:
                 match_data[i]['bbox']['rectangle']['height'] = updated_data[i]['height']
                 match_data[i]['bbox']['rectangle']['width'] = updated_data[i]['width']
                 match_data[i]['bbox']['rectangle']['rotation'] = updated_data[i]['rotation']
-
+            self.calculated_boxes = updated_data
         find_intersects(match_data)
         find_corners(match_data)
         # Task 2:
