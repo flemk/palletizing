@@ -2,7 +2,6 @@
 #              It serves as a template for users to implement their own processing code.
 #              The script is designed to minimize dependencies.
 import tkinter as tk
-from base64 import b64decode
 from tkinter import Toplevel, PhotoImage, Canvas
 import base64
 import datetime
@@ -12,11 +11,15 @@ import time
 import math
 import select
 import json
-from box import Box
-from util import Vec2
 from threading import Thread, current_thread
+from typing import List
+
 # If the Pillow library is not installed, run the following command: "pip install pillow"
 from PIL import Image, ImageDraw, ImageTk, ImageColor
+
+from box import Box, sort_by_size, determine_positions_easy
+from util import Vec2
+from robot_interaction import RobotInteractor
 
 # Configuration
 DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
@@ -39,6 +42,7 @@ GET_DEPTH_IMAGE_MESSAGE = f'{{"name": "Run.Property.Get", "key": "depth_image"}}
 TIME_OUT = 60  # Timeout in seconds
 DELAY = 100  # Delay in milliseconds between each Locate call
 BUFFER_SIZE = 1024  # Buffer size for socket communication
+TARGET_AREA = (Vec2(0,0), Vec2(0,0)) # TODO: measure real target area!!!
 
 def rotate_point(point, angle, origin=(0, 0)):
     ox, oy = origin
@@ -122,6 +126,9 @@ class App:
         self.load_file = tk.Button(self.bottom_frame, text="load file", command=self.load_from_file)
         self.load_file.pack(side=tk.LEFT)
 
+        self.start_sorting_btn = tk.Button(self.bottom_frame, text="start sorting", command=self.start_sorting)
+        self.start_sorting_btn.pack(side=tk.LEFT)
+
         self.ip_entry = tk.Entry(self.bottom_frame)
         self.ip_entry.insert(0, DEFAULT_IP_ADDRESS)
         self.ip_entry.pack(side=tk.RIGHT)
@@ -137,7 +144,7 @@ class App:
         self.pre_processed_corners = {}
         self.calculated_boxes = {}
 
-    def get_boxes(self):
+    def get_boxes(self) -> List[Box]:
         boxes = []
         for _, box in self.calculated_boxes:
             center = Vec2(box['x'], box['y'])
@@ -608,6 +615,21 @@ class App:
             match_data[i] = match_data.pop(str(i))
 
         self.process_match_data(match_data, b64val)
+
+    def start_sorting(self):
+        """
+        call this after fetching an image from the camera,
+        tell the robot to start
+        :return:
+        """
+        sorted_boxes = sort_by_size(self.get_boxes())
+        target_positions = determine_positions_easy(TARGET_AREA, sorted_boxes)
+
+        ctrl = RobotInteractor()
+        ctrl.go_to_home_position()
+        for i, box in enumerate(sorted_boxes):
+            ctrl.move_box_to_target(box, target_positions[i][0])
+        print("Finished placing boxes")
 
 if __name__ == '__main__':
     # Construct GUI and run
