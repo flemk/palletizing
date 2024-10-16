@@ -12,6 +12,8 @@ import time
 import math
 import select
 import json
+from box import Box
+from util import Vec2
 from threading import Thread, current_thread
 # If the Pillow library is not installed, run the following command: "pip install pillow"
 from PIL import Image, ImageDraw, ImageTk, ImageColor
@@ -84,6 +86,14 @@ class App:
         self.pre_processed_corners = {}
         self.calculated_boxes = {}
 
+    def get_boxes(self):
+        boxes = []
+        for _, box in self.calculated_boxes:
+            center = Vec2(box['x'], box['y'])
+            dimensions = Vec2(box['width'], box['height'])
+            boxes.append(Box(center, dimensions, box['z'], box['rotation']))
+        return boxes
+    
     def toggle_run(self):
         # Called when Run toggle is pressed
         if self.run.get():
@@ -522,6 +532,10 @@ class App:
                 updated_data[i]['height'] = new_height
                 updated_data[i]['width'] = new_width
                 updated_data[i]['rotation'] = rotation
+                updated_data[i]['x'] = bbox['x']
+                updated_data[i]['y'] = bbox['y']
+                updated_data[i]['z_height'] = match_data[i]['toolFrame']['z']
+
                 print(f'Height{height}')
                 print(f'New height: {new_height}')
                 print(f'Width: {width}')
