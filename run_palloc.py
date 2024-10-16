@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageTk, ImageColor
 
 # Configuration
 DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
-DEFAULT_FILE_PATH = "/path/to/file"
+DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/"
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -63,7 +63,7 @@ class App:
         self.run_once_button.pack(side=tk.LEFT)
 
         self.file_path = tk.Entry(self.bottom_frame)
-        self.file_path.insert(DEFAULT_FILE_PATH)
+        self.file_path.insert(0, DEFAULT_FILE_PATH)
         self.file_path.pack(side=tk.LEFT)
 
         self.load_file = tk.Button(self.bottom_frame, text="load file", command=self.load_from_file)
@@ -79,6 +79,8 @@ class App:
         self.text_box = tk.Text(self.frame)
         self.text_box.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
         self.loading = False # set to True later when loading from a file
+
+        self.bbox_overlaps = {}
 
     def toggle_run(self):
         # Called when Run toggle is pressed
@@ -257,7 +259,7 @@ class App:
             rotation = bbox["rotation"]
             self.draw_rotated_rectangle(temp_draw, x, y, width, height, rotation, outline=color)
 
-            """# Draw regions for each match
+            # Draw regions for each match
             region = match_info["bbox"]["region"]
             segmentsXStart = region["segmentsXStart"]
             segmentsXStop = region["segmentsXStop"]
@@ -266,7 +268,7 @@ class App:
                 for i in range(start, stop):
                     # Draw the line with transparency on the temporary image
                     temp_draw.line((i, y, i + 1, y), fill=rgba_color, width=1)
-            """
+            
             # Composite the temporary image onto the canvas image
             canvas_image = Image.alpha_composite(canvas_image, temp_image)
             
@@ -323,7 +325,6 @@ class App:
 
     def process_match_data(self, match_data, color_image):
         # Put your processing code here...
-        
         # Task 1:
         # For each match, find its real world top side coverage represented as a new
         # rectangle with position, size, and rotation. Suggested data to use is:
@@ -343,83 +344,145 @@ class App:
             nominator = math.sqrt((x_2 - y_1) ** 2 + (x_2 - x_1) ** 2)
 
             return denominator / nominator
-    
-        for _, match in match_data.items():
-            bbox = match['bbox']['rectangle']
-            height = bbox['height']
-            width = bbox['width']
-            bbox_x = bbox['x']
-            bbox_y = bbox['y']
-
-            box_outline_coordinates = [
-                (bbox_x - width / 2, bbox_y + height / 2),
-                (bbox_x + width / 2, bbox_y + height / 2),
-                (bbox_x - width / 2, bbox_y - height / 2),
-                (bbox_x + width / 2, bbox_y - height / 2),
-            ]
-
-            region = match['bbox']['region']
-
-            segments_y = region['segmentsY']
-            segments_x_start = region['segmentsXStart']
-            segments_x_stop = region['segmentsXStart']
-
-            max_y = segments_y[-1]
-            min_y = segments_y[0]
-            max_x = segments_x_stop[-1]
-            min_x = segments_x_start[-1]
-
-            coordinates = [[min_x, max_y], [max_x, max_y], [(max_x+min_x)/2, max_y], [(segments_x_start[0] + segments_x_stop[0])/2, min_y]]
-
-            for start, stop, y in zip(segments_x_start, segments_x_stop, segments_y):
-                if (start < coordinates[0][0]):
-                    coordinates[0] = [start, y]
-    
-                if (stop > coordinates[1][0]):
-                    coordinates[1] = [stop, y]
-            
-            dx = coordinates[1][0] - coordinates[2][0]
-            dy = coordinates[2][1] - coordinates[1][1]
-
-            print(f'dx1: {dx}')
-            print(f'dy1: {dy}')
-            
-            rotation = -math.atan2(dy,dx)
-            width = math.sqrt(dx**2 + dy**2)
-            
-            dx = coordinates[2][0] - coordinates[0][0] 
-            dy = coordinates[2][1] - coordinates[0][1]
-
-            print(f'dx2: {dx}')
-            print(f'dy2: {dy}')
-
-            height = math.sqrt(dx**2 + dy**2)
-            
-            bbox['height'] = height
-            bbox['width'] = width
-            bbox['rotation'] = rotation
-            print(f'Height: {height}')
-            print(f'Width: {width}')
-            print(f'Rotation: {rotation}')
 
         def find_intersects(match_data):
-            self.overlapps = {}
             box_len = len(match_data)
-            for i in range(box_len-1):
-                x1 = match_data[i]['x'] 
-                y1 = match_data[i]['y']
-                width1 = match_data[i]['width']
-                height1 = match_data[i]['height']
-                for j in range(i+1, box_len-1):
-                    x2 = match_data[j]['x']
-                    y2 = match_data[j]['y']
-                    width2 = match_data[j]['width']
-                    height2 = match_data[j]['height']
+            print(f"Boxes: {box_len}")
+            for i in range(1, box_len):
+                x1 = match_data[i]['bbox']['rectangle']['x'] 
+                y1 = match_data[i]['bbox']['rectangle']['y']
+                width1 = match_data[i]['bbox']['rectangle']['width']
+                height1 = match_data[i]['bbox']['rectangle']['height']
+                for j in range(i+1, box_len+1):
+                    x2 = match_data[j]['bbox']['rectangle']['x']
+                    y2 = match_data[j]['bbox']['rectangle']['y']
+                    width2 = match_data[j]['bbox']['rectangle']['width']
+                    height2 = match_data[j]['bbox']['rectangle']['height']
 
+                    if (abs(x1-x2) < (width1+width2)/2
+                        and abs(y1-y2) < (height1+height2)/2):
+                        self.bbox_overlaps[frozenset({i,j})] = True
 
+                    else:
+                        self.bbox_overlaps[frozenset({i,j})] = False
+
+            print(self.bbox_overlaps)
+
+        def find_corners(match_data):
+            updated_data = {}
+            for i, match in match_data.items():
+                bbox = match['bbox']['rectangle']
+                height = bbox['height']
+                width = bbox['width']
+                bbox_x = bbox['x']
+                bbox_y = bbox['y']
+
+                region = match['bbox']['region']
+
+                segments_y = region['segmentsY']
+                segments_x_start = region['segmentsXStart']
+                segments_x_stop = region['segmentsXStart']
+
+                max_y = segments_y[-1]
+                min_y = segments_y[0]
+                max_x = segments_x_stop[-1]
+                min_x = segments_x_start[-1]
+
+                # Left, Right, Top, Bottom
+                coordinates = [[min_x, max_y], [max_x, max_y], [(max_x+min_x)/2, max_y], [(segments_x_start[0] + segments_x_stop[0])/2, min_y]]
+
+                for start, stop, y in zip(segments_x_start, segments_x_stop, segments_y):
+                    if (start < coordinates[0][0]):
+                        coordinates[0] = [start, y]
+
+                    if (stop > coordinates[1][0]):
+                        coordinates[1] = [stop, y]
+
+                for j in range(1, len(match_data)+1):
+                    if (i == j):
+                        continue
+                    if (self.bbox_overlaps[frozenset({i,j})]):
+                        other_bbox = match_data[j]['bbox']['rectangle']
+                        other_x = other_bbox['x']
+                        other_y = other_bbox['y']
+                        other_width = other_bbox['width']
+                        other_height = other_bbox['height']
+                        
+                        left_x = coordinates[0][0]
+                        left_y = coordinates[0][1]
+                        # Recreate left corner from right
+                        if (abs(left_x-other_x) < other_width 
+                            and abs(left_y-other_y) < other_height):
+                            right_x = coordinates[1][0]
+                            right_y = coordinates[1][1]
+
+                            delta_x = right_x-bbox_x
+                            coordinates[0][0] = bbox_x - delta_x
+
+                            delta_y = right_y-bbox_y
+                            coordinates[0][1] = bbox_y - delta_y
+
+                        else: # Recreate right corner from left. Not necessessarily necessary, so it might cause problems.
+                            delta_x = left_x-bbox_x
+                            coordinates[1][0] = bbox_x - delta_x
+
+                            delta_y = left_y-bbox_y
+                            coordinates[1][1] = bbox_y - delta_y
+
+                        top_x = coordinates[2][0]
+                        top_y = coordinates[2][1]
+                        
+                        if (abs(top_x-other_x) < other_width 
+                            and abs(top_y-other_y) < other_height):
+                            bottom_x = coordinates[3][0]
+                            bottom_y = coordinates[3][1]
+
+                            delta_x = bottom_x - bbox_x
+                            coordinates[2][0] = bbox_x - delta_x
+
+                            delta_y = bottom_y-bbox_y
+                            coordinates[2][1] = bbox_y - delta_y
+
+                        else:
+                            delta_x = top_x-bbox_x
+                            coordinates[3][0] = bbox_x - delta_x
+
+                            delta_y = top_y-bbox_y
+                            coordinates[3][1] = bbox_y - delta_y
+
+                dx = coordinates[1][0] - coordinates[2][0]
+                dy = coordinates[2][1] - coordinates[1][1]
+
+                print(f'dx1: {dx}')
+                print(f'dy1: {dy}')
+
+                rotation = math.atan2(dx,dy) + math.pi/2
+                width = math.sqrt(dx**2 + dy**2)
+
+                dx = coordinates[2][0] - coordinates[0][0] 
+                dy = coordinates[2][1] - coordinates[0][1]
+
+                print(f'dx2: {dx}')
+                print(f'dy2: {dy}')
+
+                height = math.sqrt(dx**2 + dy**2)
+
+                updated_data[i] = {}
+                updated_data[i]['height'] = height
+                updated_data[i]['width'] = width
+                updated_data[i]['rotation'] = rotation
+                print(f'Height: {height}')
+                print(f'Width: {width}')
+                print(f'Rotation: {rotation}')
+
+            for i in range(1, len(match_data)+1):
+                match_data[i]['bbox']['rectangle']['height'] = updated_data[i]['height']
+                match_data[i]['bbox']['rectangle']['width'] = updated_data[i]['width']
+                match_data[i]['bbox']['rectangle']['rotation'] = updated_data[i]['rotation']
 
         
-
+        find_intersects(match_data)
+        find_corners(match_data)
         # Task 2:
         # Correlate the derived 2D rectangles with the 3D bounding
         # boxes and prepare for providing correctly rotated pick positions.
