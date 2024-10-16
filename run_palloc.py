@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageTk, ImageColor
 
 # Configuration
 DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
-DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/three_boxes.png"
+DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/2024-10-16_14:47-match.png"
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -81,6 +81,7 @@ class App:
         self.loading = False # set to True later when loading from a file
 
         self.bbox_overlaps = {}
+        self.pre_processed_corners = {}
 
     def toggle_run(self):
         # Called when Run toggle is pressed
@@ -265,11 +266,12 @@ class App:
             segmentsXStart = region["segmentsXStart"]
             segmentsXStop = region["segmentsXStop"]
             segmentsY = region["segmentsY"]
-            for start, stop, y in zip(segmentsXStart, segmentsXStop, segmentsY):
-                for i in range(start, stop):
-                    # Draw the line with transparency on the temporary image
-                    temp_draw.line((i, y, i + 1, y), fill=rgba_color, width=1)
-            
+            # for start, stop, y in zip(segmentsXStart, segmentsXStop, segmentsY):
+            #     for i in range(start, stop):
+            #         # Draw the line with transparency on the temporary image
+            #         temp_draw.line((i, y, i + 1, y), fill=rgba_color, width=1)
+            for coordinates in self.pre_processed_corners[match_id]:
+                temp_draw.circle(coordinates, radius=3, fill='black', width=3)
             # Composite the temporary image onto the canvas image
             canvas_image = Image.alpha_composite(canvas_image, temp_image)
             
@@ -393,24 +395,22 @@ class App:
                 min_x = segments_x_start[-1]
 
                 # Left, Right, Top, Bottom
-                coordinates = [[min_x, max_y], [max_x, max_y], [(max_x+min_x)/2, max_y], [(segments_x_start[0] + segments_x_stop[0])/2, min_y]]
+                coordinates = [[min_x, max_y], [(max_x+min_x)/2, max_y], [max_x, max_y], [(segments_x_stop[0]+segments_x_start[0])/2, min_y]]
                 for start, stop, y in zip(segments_x_start, segments_x_stop, segments_y):
-                    significance = abs(stop-start)
-                    print(f"Start: {start}")
-                    print(f"Stop: {stop}")
-                    if (significance > 0):
-                        print(f"Significance: {significance}")
-                        
-                    if (start < coordinates[0][0]):
+                    
+                    significance = stop-start
+                    if (start < coordinates[0][0] and significance > 3):
                         coordinates[0] = [start, y]
+                        print(f"Smallest x: {[start, y]}")
 
-                    if (stop > coordinates[1][0]):
+                    if (stop > coordinates[1][0] and significance > 3):
                         coordinates[1] = [stop, y]
-
+                        print(f"Biggest x: {[stop, y]}")
+                self.pre_processed_corners[i] = coordinates
                 for j in range(1, len(match_data)+1):
+                    break
                     if (i == j):
                         continue
-
 
                     if (self.bbox_overlaps[frozenset({i,j})]):
                         other_bbox = match_data[j]['bbox']['rectangle']
@@ -419,8 +419,8 @@ class App:
                         other_width = other_bbox['width']
                         other_height = other_bbox['height']
                         
-                        delta_top = (coordinates[2][1] - (bbox_y + (other_height/2)))
-                        delta_bot = (coordinates[3][1] - (bbox_y - (other_height/2)))
+                        delta_top = (coordinates[2][1] - (bbox_y + (height/2)))
+                        delta_bot = (coordinates[3][1] - (bbox_y - (height/2)))
 
                         if (delta_top < delta_bot):
                             pref_tb = coordinates[2]
@@ -429,8 +429,8 @@ class App:
                             pref_tb = coordinates[3]
                             bad_tb = coordinates[2]
 
-                        delta_left = (coordinates[0][0] - (bbox_x - (other_width/2)))
-                        delta_right = (coordinates[1][0] - (bbox_x + (other_width/2)))
+                        delta_left = (coordinates[0][0] - (bbox_x - (width/2)))
+                        delta_right = (coordinates[1][0] - (bbox_x + (width/2)))
 
                         if (delta_left < delta_right): # Left corner closer to bbox than right corner
                             pref_lr = coordinates[0]
@@ -441,17 +441,24 @@ class App:
 
                         pref_lr_x = pref_lr[0]
                         pref_lr_y = pref_lr[1]
+
+                        bad_lr_x = bad_lr[0]
+                        bad_lr_y = bad_lr[1]
+
                         # If the good corner is in a different region, recreate it using the worse corner
-                        if (abs(pref_lr_y-other_y) < other_width 
+                        if (abs(pref_lr_x-other_x) < other_width 
                             and abs(pref_lr_y-other_y) < other_height):
 
-                            delta_x = bad_lr[0]-bbox_x
+                            delta_x = bad_lr_x-bbox_x
                             pref_lr[0] = bbox_x - delta_x
 
-                            delta_y = bad_lr[1]-bbox_y
+                            delta_y = bad_lr_y-bbox_y
                             pref_lr[1] = bbox_y - delta_y
-
-                        else: # Recreate right corner from left. Not necessessarily necessary, so it might cause problems.
+                        
+                        # Recreate right corner from left. Not necessessarily necessary, so it might cause problems.
+                        elif(abs(bad_lr_x-other_x) < other_width 
+                             and abs(bad_lr_y-other_y) < other_height):
+                            
                             delta_x = pref_lr_x-bbox_x
                             bad_lr[0] = bbox_x - delta_x
 
@@ -460,25 +467,30 @@ class App:
 
                         pref_tb_x = pref_tb[0]
                         pref_tb_y = pref_tb[1]
+
+                        bad_tb_x = bad_tb[0]
+                        bad_tb_y = bad_tb[1]
                         
                         if (abs(pref_tb_x-other_x) < other_width 
                             and abs(pref_tb_y-other_y) < other_height):
                     
-                            delta_x = bad_tb[0] - bbox_x
+                            delta_x = bad_tb_x - bbox_x
                             pref_tb[0] = bbox_x - delta_x
 
-                            delta_y = bad_tb[1]-bbox_y
+                            delta_y = bad_tb_y-bbox_y
                             pref_tb[1] = bbox_y - delta_y
 
-                        else:
+                        elif(abs(bad_tb_x-other_x) < other_width 
+                            and abs(bad_tb_y-other_y) < other_height):
+
                             delta_x = pref_tb_x-bbox_x
                             bad_tb[0] = bbox_x - delta_x
 
                             delta_y = pref_tb_y-bbox_y
                             bad_tb[1] = bbox_y - delta_y
 
-                dx = coordinates[1][0] - coordinates[2][0]
-                dy = coordinates[1][1] - coordinates[2][1]
+                dx = coordinates[1][0] - coordinates[2][0] # Right - Top
+                dy = coordinates[1][1] - coordinates[2][1] # Right - Top
 
                 print(f'dx1: {dx}')
                 print(f'dy1: {dy}')
@@ -487,8 +499,8 @@ class App:
 
                 new_width = math.sqrt(dx**2 + dy**2)
 
-                dx = coordinates[2][0] - coordinates[0][0]
-                dy = coordinates[2][1] - coordinates[0][1]
+                dx = coordinates[2][0] - coordinates[0][0] # Top - Left
+                dy = coordinates[2][1] - coordinates[0][1] # Top - Left
 
                 new_height = math.sqrt(dx**2+dy**2)
 
