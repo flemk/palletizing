@@ -527,8 +527,6 @@ class App:
                             delta_y = pref_tb_y-bbox_y
                             bad_tb[1] = bbox_y - delta_y
 
-                bounding_rectangle = minimum_bounding_rectangle(coordinates)
-                bounding_rectangle_center = calculate_centroid(bounding_rectangle)
                 bounding_rectangle_width, bounding_rectangle_height, bounding_rectangle_rotation = calculate_true_dimensions(coordinates)
 
                 updated_data[i] = {}
