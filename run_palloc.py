@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageTk, ImageColor
 
 # Configuration
 DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
-DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/"
+DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/three_boxes.png"
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -259,6 +259,7 @@ class App:
             rotation = bbox["rotation"]
             self.draw_rotated_rectangle(temp_draw, x, y, width, height, rotation, outline=color)
 
+            
             # Draw regions for each match
             region = match_info["bbox"]["region"]
             segmentsXStart = region["segmentsXStart"]
@@ -348,16 +349,19 @@ class App:
         def find_intersects(match_data):
             box_len = len(match_data)
             print(f"Boxes: {box_len}")
+            print(match_data)
             for i in range(1, box_len):
-                x1 = match_data[i]['bbox']['rectangle']['x'] 
-                y1 = match_data[i]['bbox']['rectangle']['y']
-                width1 = match_data[i]['bbox']['rectangle']['width']
-                height1 = match_data[i]['bbox']['rectangle']['height']
+                bbox_1 = match_data[i]['bbox']['rectangle']
+                x1 = bbox_1['x'] 
+                y1 = bbox_1['y']
+                width1 = bbox_1['width']
+                height1 = bbox_1['height']
                 for j in range(i+1, box_len+1):
-                    x2 = match_data[j]['bbox']['rectangle']['x']
-                    y2 = match_data[j]['bbox']['rectangle']['y']
-                    width2 = match_data[j]['bbox']['rectangle']['width']
-                    height2 = match_data[j]['bbox']['rectangle']['height']
+                    bbox_2 = match_data[j]['bbox']['rectangle']
+                    x2 = bbox_2['x']
+                    y2 = bbox_2['y']
+                    width2 = bbox_2['width']
+                    height2 = bbox_2['height']
 
                     if (abs(x1-x2) < (width1+width2)/2
                         and abs(y1-y2) < (height1+height2)/2):
@@ -381,7 +385,7 @@ class App:
 
                 segments_y = region['segmentsY']
                 segments_x_start = region['segmentsXStart']
-                segments_x_stop = region['segmentsXStart']
+                segments_x_stop = region['segmentsXStop']
 
                 max_y = segments_y[-1]
                 min_y = segments_y[0]
@@ -390,8 +394,13 @@ class App:
 
                 # Left, Right, Top, Bottom
                 coordinates = [[min_x, max_y], [max_x, max_y], [(max_x+min_x)/2, max_y], [(segments_x_start[0] + segments_x_stop[0])/2, min_y]]
-
                 for start, stop, y in zip(segments_x_start, segments_x_stop, segments_y):
+                    significance = abs(stop-start)
+                    print(f"Start: {start}")
+                    print(f"Stop: {stop}")
+                    if (significance > 0):
+                        print(f"Significance: {significance}")
+                        
                     if (start < coordinates[0][0]):
                         coordinates[0] = [start, y]
 
@@ -401,6 +410,8 @@ class App:
                 for j in range(1, len(match_data)+1):
                     if (i == j):
                         continue
+
+
                     if (self.bbox_overlaps[frozenset({i,j})]):
                         other_bbox = match_data[j]['bbox']['rectangle']
                         other_x = other_bbox['x']
@@ -408,71 +419,96 @@ class App:
                         other_width = other_bbox['width']
                         other_height = other_bbox['height']
                         
-                        left_x = coordinates[0][0]
-                        left_y = coordinates[0][1]
-                        # Recreate left corner from right
-                        if (abs(left_x-other_x) < other_width 
-                            and abs(left_y-other_y) < other_height):
-                            right_x = coordinates[1][0]
-                            right_y = coordinates[1][1]
+                        delta_top = (coordinates[2][1] - (bbox_y + (other_height/2)))
+                        delta_bot = (coordinates[3][1] - (bbox_y - (other_height/2)))
 
-                            delta_x = right_x-bbox_x
-                            coordinates[0][0] = bbox_x - delta_x
+                        if (delta_top < delta_bot):
+                            pref_tb = coordinates[2]
+                            bad_tb = coordinates[3]
+                        else:
+                            pref_tb = coordinates[3]
+                            bad_tb = coordinates[2]
 
-                            delta_y = right_y-bbox_y
-                            coordinates[0][1] = bbox_y - delta_y
+                        delta_left = (coordinates[0][0] - (bbox_x - (other_width/2)))
+                        delta_right = (coordinates[1][0] - (bbox_x + (other_width/2)))
+
+                        if (delta_left < delta_right): # Left corner closer to bbox than right corner
+                            pref_lr = coordinates[0]
+                            bad_lr = coordinates[1]
+                        else:
+                            pref_lr = coordinates[1]
+                            bad_lr = coordinates[0]
+
+                        pref_lr_x = pref_lr[0]
+                        pref_lr_y = pref_lr[1]
+                        # If the good corner is in a different region, recreate it using the worse corner
+                        if (abs(pref_lr_y-other_y) < other_width 
+                            and abs(pref_lr_y-other_y) < other_height):
+
+                            delta_x = bad_lr[0]-bbox_x
+                            pref_lr[0] = bbox_x - delta_x
+
+                            delta_y = bad_lr[1]-bbox_y
+                            pref_lr[1] = bbox_y - delta_y
 
                         else: # Recreate right corner from left. Not necessessarily necessary, so it might cause problems.
-                            delta_x = left_x-bbox_x
-                            coordinates[1][0] = bbox_x - delta_x
+                            delta_x = pref_lr_x-bbox_x
+                            bad_lr[0] = bbox_x - delta_x
 
-                            delta_y = left_y-bbox_y
-                            coordinates[1][1] = bbox_y - delta_y
+                            delta_y = pref_lr_y-bbox_y
+                            bad_lr[1] = bbox_y - delta_y
 
-                        top_x = coordinates[2][0]
-                        top_y = coordinates[2][1]
+                        pref_tb_x = pref_tb[0]
+                        pref_tb_y = pref_tb[1]
                         
-                        if (abs(top_x-other_x) < other_width 
-                            and abs(top_y-other_y) < other_height):
-                            bottom_x = coordinates[3][0]
-                            bottom_y = coordinates[3][1]
+                        if (abs(pref_tb_x-other_x) < other_width 
+                            and abs(pref_tb_y-other_y) < other_height):
+                    
+                            delta_x = bad_tb[0] - bbox_x
+                            pref_tb[0] = bbox_x - delta_x
 
-                            delta_x = bottom_x - bbox_x
-                            coordinates[2][0] = bbox_x - delta_x
-
-                            delta_y = bottom_y-bbox_y
-                            coordinates[2][1] = bbox_y - delta_y
+                            delta_y = bad_tb[1]-bbox_y
+                            pref_tb[1] = bbox_y - delta_y
 
                         else:
-                            delta_x = top_x-bbox_x
-                            coordinates[3][0] = bbox_x - delta_x
+                            delta_x = pref_tb_x-bbox_x
+                            bad_tb[0] = bbox_x - delta_x
 
-                            delta_y = top_y-bbox_y
-                            coordinates[3][1] = bbox_y - delta_y
+                            delta_y = pref_tb_y-bbox_y
+                            bad_tb[1] = bbox_y - delta_y
 
                 dx = coordinates[1][0] - coordinates[2][0]
-                dy = coordinates[2][1] - coordinates[1][1]
+                dy = coordinates[1][1] - coordinates[2][1]
 
                 print(f'dx1: {dx}')
                 print(f'dy1: {dy}')
 
-                rotation = math.atan2(dx,dy) + math.pi/2
-                width = math.sqrt(dx**2 + dy**2)
+                rotation = math.atan2(dy,dx)
 
-                dx = coordinates[2][0] - coordinates[0][0] 
+                new_width = math.sqrt(dx**2 + dy**2)
+
+                dx = coordinates[2][0] - coordinates[0][0]
                 dy = coordinates[2][1] - coordinates[0][1]
 
-                print(f'dx2: {dx}')
-                print(f'dy2: {dy}')
+                new_height = math.sqrt(dx**2+dy**2)
 
-                height = math.sqrt(dx**2 + dy**2)
+                
+                sin = math.sin(rotation)
+                cos = math.cos(rotation)
+
+                sec = 1/math.cos(2*rotation)
+
+                new_width = sec*(cos*width+sin*height)
+                new_height = sec*(cos*height+sin*width)
 
                 updated_data[i] = {}
-                updated_data[i]['height'] = height
-                updated_data[i]['width'] = width
+                updated_data[i]['height'] = new_height
+                updated_data[i]['width'] = new_width
                 updated_data[i]['rotation'] = rotation
-                print(f'Height: {height}')
+                print(f'Height{height}')
+                print(f'New height: {new_height}')
                 print(f'Width: {width}')
+                print(f'New width: {new_width}')
                 print(f'Rotation: {rotation}')
 
             for i in range(1, len(match_data)+1):
@@ -530,6 +566,9 @@ class App:
             b64val = base64.b64encode(f.read())
         with open(f"{base_path}.json", 'r') as f:
             match_data = json.load(f)
+        
+        for i in range(1, len(match_data)+1):
+            match_data[i] = match_data.pop(str(i))
 
         self.process_match_data(match_data, b64val)
 
