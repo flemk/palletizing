@@ -49,24 +49,24 @@ def rotate_point(point, angle, origin=(0, 0)):
 def calculate_true_dimensions(coordinates):
     # Calculate the centroid of the rectangle
     centroid = calculate_centroid(coordinates)
-    
+
     # Calculate the rotation angle of the rectangle
     dx = coordinates[1][0] - coordinates[0][0]
     dy = coordinates[1][1] - coordinates[0][1]
     rotation_angle = math.atan2(dy, dx)
-    
+
     # Rotate all points back to align with the coordinate axes
     rotated_points = [rotate_point(p, -rotation_angle, centroid) for p in coordinates]
-    
+
     # Calculate the width and height from the rotated points
     min_x = min(p[0] for p in rotated_points)
     max_x = max(p[0] for p in rotated_points)
     min_y = min(p[1] for p in rotated_points)
     max_y = max(p[1] for p in rotated_points)
-    
+
     true_width = max_x - min_x
     true_height = max_y - min_y
-    
+
     return true_width, true_height, rotation_angle
 
 
@@ -312,24 +312,16 @@ class App:
             rotation = bbox["rotation"]
             self.draw_rotated_rectangle(temp_draw, x, y, width, height, rotation, outline=color)
 
-            
             # Draw regions for each match
             region = match_info["bbox"]["region"]
-            segmentsXStart = region["segmentsXStart"]
-            segmentsXStop = region["segmentsXStop"]
-            segmentsY = region["segmentsY"]
-            # for start, stop, y in zip(segmentsXStart, segmentsXStop, segmentsY):
-            #     for i in range(start, stop):
-            #         # Draw the line with transparency on the temporary image
-            #         temp_draw.line((i, y, i + 1, y), fill=rgba_color, width=1)
             coordinates = self.pre_processed_corners[match_id]
             temp_draw.circle(coordinates[0], radius=3, fill='black', width=3) 
             temp_draw.circle(coordinates[1], radius=3, fill='red', width=3)
             temp_draw.circle(coordinates[2], radius=3, fill='blue', width=3)
             temp_draw.circle(coordinates[3], radius=3, fill='yellow', width=3)
-            # Composite the temporary image onto the canvas image
+
             canvas_image = Image.alpha_composite(canvas_image, temp_image)
-            
+
         # Convert the canvas image to PhotoImage and display it
         overlay_image = ImageTk.PhotoImage(canvas_image)
         self.canvas.create_image(0, 0, anchor=tk.NW, image=overlay_image)
@@ -365,13 +357,13 @@ class App:
                     if color_image is None or color_image == "":
                         self.print_to_text_box(f"Failed to fetch color image from PALLOC")
                         return
-                    
+
                 feedback_dict = self.send_and_receive(my_socket, GET_MATCH_DATA_MESSAGE)
                 match_data[match] = feedback_dict.get("value", None)
 
                 if match == matches:
                     break
-                
+
             except json.JSONDecodeError:
                 self.print_to_text_box(f"Failed to fetch data from PALLOC")
                 return
@@ -394,15 +386,6 @@ class App:
         # Note:
         # The bounding box and the region may overlap, making it challenging to
         # identify the pixels that belong to the top side of each match.
-        def distance_point_to_line(x_0, y_0, x_1, y_1, x_2, y_2):
-            ''' x_0, y_0: point 
-            x_1, y_1: line point start
-            x_2, y_2: line point end '''
-            denominator = abs((y_2 - y_1) * x_0 - (x_2 - x_1) * y_0 + x_2 * y_1 - y_2 * x_1)
-            nominator = math.sqrt((x_2 - y_1) ** 2 + (x_2 - x_1) ** 2)
-
-            return denominator / nominator
-
         def find_intersects(match_data):
             box_len = len(match_data)
             print(f"Boxes: {box_len}")
@@ -450,9 +433,11 @@ class App:
                 min_x = segments_x_start[-1]
 
                 # Left, Right, Top, Bottom
-                coordinates = [[min_x, max_y], [(max_x+min_x)/2, max_y], [max_x, max_y], [(segments_x_stop[0]+segments_x_start[0])/2, min_y]]
+                coordinates = [[min_x, max_y],
+                               [(max_x+min_x)/2, max_y],
+                               [max_x, max_y],
+                               [(segments_x_stop[0]+segments_x_start[0])/2, min_y]]
                 for start, stop, y in zip(segments_x_start, segments_x_stop, segments_y):
-                    
                     significance = stop-start
                     if (start < coordinates[0][0] and significance > 3):
                         coordinates[0] = [start, y]
@@ -508,11 +493,11 @@ class App:
 
                             delta_y = bad_lr_y-bbox_y
                             pref_lr[1] = bbox_y - delta_y
-                        
+
                         # Recreate right corner from left. Not necessessarily necessary, so it might cause problems.
-                        elif(abs(bad_lr_x-other_x) < other_width 
+                        elif(abs(bad_lr_x-other_x) < other_width
                              and abs(bad_lr_y-other_y) < other_height):
-                            
+
                             delta_x = pref_lr_x-bbox_x
                             bad_lr[0] = bbox_x - delta_x
 
@@ -524,10 +509,10 @@ class App:
 
                         bad_tb_x = bad_tb[0]
                         bad_tb_y = bad_tb[1]
-                        
-                        if (abs(pref_tb_x-other_x) < other_width 
+
+                        if (abs(pref_tb_x-other_x) < other_width
                             and abs(pref_tb_y-other_y) < other_height):
-                    
+
                             delta_x = bad_tb_x - bbox_x
                             pref_tb[0] = bbox_x - delta_x
 
@@ -543,16 +528,6 @@ class App:
                             delta_y = pref_tb_y-bbox_y
                             bad_tb[1] = bbox_y - delta_y
 
-                dx = coordinates[1][0] - coordinates[2][0] # Right - Top
-                dy = coordinates[1][1] - coordinates[2][1] # Right - Top
-                new_width = math.sqrt(dx ** 2 + dy ** 2)
-
-                rotation = math.atan2(dy,dx)
-
-                dx = coordinates[3][0] - coordinates[0][0] # Top - Left
-                dy = coordinates[3][1] - coordinates[0][1] # Top - Left
-                new_height = math.sqrt(dx ** 2 + dy ** 2)
-
                 bounding_rectangle = minimum_bounding_rectangle(coordinates)
                 bounding_rectangle_center = calculate_centroid(bounding_rectangle)
                 bounding_rectangle_rotation = angle_from_centroid(bounding_rectangle[0], bounding_rectangle_center)
@@ -562,24 +537,6 @@ class App:
                 updated_data[i]['height'] = bounding_rectangle_height
                 updated_data[i]['width'] = bounding_rectangle_width
                 updated_data[i]['rotation'] = bounding_rectangle_rotation
-
-                #sin = math.sin(rotation)
-                #cos = math.cos(rotation)
-
-                #sec = 1/math.cos(2 * rotation)
-
-                #new_width = sec*(cos*width+sin*height)
-                #new_height = sec*(cos*height-sin*width)
-
-                #updated_data[i] = {}
-                #updated_data[i]['height'] = new_height
-                #updated_data[i]['width'] = new_width
-                #updated_data[i]['rotation'] = rotation
-                #print(f'Height{height}')
-                #print(f'New height: {new_height}')
-                #print(f'Width: {width}')
-                #print(f'New width: {new_width}')
-                #print(f'Rotation: {rotation}')
 
             for i in range(1, len(match_data)+1):
                 match_data[i]['bbox']['rectangle']['height'] = updated_data[i]['height']
