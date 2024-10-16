@@ -2,7 +2,7 @@
 file containing a class for defining a box alonsgside
 with it's dimensions
 """
-from typing import Tuple
+from typing import Tuple, List
 
 
 class Box:
@@ -30,3 +30,27 @@ class Box:
         :return:
         """
         return self.dimensions[0] * self.dimensions[1]
+
+    def get_volume(self) -> float:
+        """
+        returns the volume of the box
+        :return:
+        """
+        return self.dimensions[0] * self.dimensions[1] * self.dimensions[2]
+
+    def get_gripping_position(self) -> Tuple[float, float, float]:
+        """
+        get an (x,y,z) position for the robot to grip the box
+        :return: coordinate of the gripping position
+        """
+        raise NotImplementedError
+
+def sort_by_size(boxes: List[Box], descending: bool = True) -> List[Box]:
+    """
+    sorts the given boxes by their size in descending order.
+    Returns a new list
+    :param boxes:
+    :param descending: whether to sort the boxes descending
+    :return:
+    """
+    return sorted(boxes, key=lambda box: box.get_volume(), reverse=descending)
