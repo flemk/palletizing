@@ -136,8 +136,6 @@ def determine_positions_easy(target_area: Tuple[Vec2, Vec2],
         current_x_border = target_center_of_box.x
         max_y_offset = max(max_y_offset, target_center_of_box.y + box.height // 2)
 
-
-
     return target_coords
 
 if __name__ == '__main__':
