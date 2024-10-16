@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageTk, ImageColor
 
 # Configuration
 DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
-DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/2024-10-16_14:47-match.png"
+DEFAULT_FILE_PATH = "D://main/project/github/palletizing/checkpoints/2024-10-16_14_47-match.json"
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -38,6 +38,58 @@ TIME_OUT = 60  # Timeout in seconds
 DELAY = 100  # Delay in milliseconds between each Locate call
 BUFFER_SIZE = 1024  # Buffer size for socket communication
 
+def rotate_point(point, angle, origin=(0, 0)):
+    ox, oy = origin
+    px, py = point
+
+    qx = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
+    qy = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
+    return qx, qy
+
+def calculate_true_dimensions(coordinates):
+    # Calculate the centroid of the rectangle
+    centroid = calculate_centroid(coordinates)
+    
+    # Calculate the rotation angle of the rectangle
+    dx = coordinates[1][0] - coordinates[0][0]
+    dy = coordinates[1][1] - coordinates[0][1]
+    rotation_angle = math.atan2(dy, dx)
+    
+    # Rotate all points back to align with the coordinate axes
+    rotated_points = [rotate_point(p, -rotation_angle, centroid) for p in coordinates]
+    
+    # Calculate the width and height from the rotated points
+    min_x = min(p[0] for p in rotated_points)
+    max_x = max(p[0] for p in rotated_points)
+    min_y = min(p[1] for p in rotated_points)
+    max_y = max(p[1] for p in rotated_points)
+    
+    true_width = max_x - min_x
+    true_height = max_y - min_y
+    
+    return true_width, true_height, rotation_angle
+
+
+def calculate_centroid(points):
+    x_coords = [p[0] for p in points]
+    y_coords = [p[1] for p in points]
+    centroid_x = sum(x_coords) / len(points)
+    centroid_y = sum(y_coords) / len(points)
+    return (centroid_x, centroid_y)
+
+def angle_from_centroid(point, centroid):
+    return math.atan2(point[1] - centroid[1], point[0] - centroid[0])
+
+def minimum_bounding_rectangle(points):
+    centroid = calculate_centroid(points)
+    points.sort(key=lambda p: angle_from_centroid(p, centroid))
+    
+    min_x = min(p[0] for p in points)
+    max_x = max(p[0] for p in points)
+    min_y = min(p[1] for p in points)
+    max_y = max(p[1] for p in points)
+    
+    return [(min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)]
 
 # Actual Program
 class App:
@@ -493,44 +545,47 @@ class App:
 
                 dx = coordinates[1][0] - coordinates[2][0] # Right - Top
                 dy = coordinates[1][1] - coordinates[2][1] # Right - Top
-
-                print(f'dx1: {dx}')
-                print(f'dy1: {dy}')
+                new_width = math.sqrt(dx ** 2 + dy ** 2)
 
                 rotation = math.atan2(dy,dx)
 
-                new_width = math.sqrt(dx**2 + dy**2)
-
                 dx = coordinates[3][0] - coordinates[0][0] # Top - Left
                 dy = coordinates[3][1] - coordinates[0][1] # Top - Left
+                new_height = math.sqrt(dx ** 2 + dy ** 2)
 
-                new_height = math.sqrt(dx**2+dy**2)
-
-                
-                sin = math.sin(rotation)
-                cos = math.cos(rotation)
-
-                sec = 1/math.cos(2*rotation)
-
-                new_width = sec*(cos*width+sin*height)
-                new_height = sec*(cos*height-sin*width)
+                bounding_rectangle = minimum_bounding_rectangle(coordinates)
+                bounding_rectangle_center = calculate_centroid(bounding_rectangle)
+                bounding_rectangle_rotation = angle_from_centroid(bounding_rectangle[0], bounding_rectangle_center)
+                bounding_rectangle_width, bounding_rectangle_height, bounding_rectangle_rotation = calculate_true_dimensions(coordinates)
 
                 updated_data[i] = {}
-                updated_data[i]['height'] = new_height
-                updated_data[i]['width'] = new_width
-                updated_data[i]['rotation'] = rotation
-                print(f'Height{height}')
-                print(f'New height: {new_height}')
-                print(f'Width: {width}')
-                print(f'New width: {new_width}')
-                print(f'Rotation: {rotation}')
+                updated_data[i]['height'] = bounding_rectangle_height
+                updated_data[i]['width'] = bounding_rectangle_width
+                updated_data[i]['rotation'] = bounding_rectangle_rotation
+
+                #sin = math.sin(rotation)
+                #cos = math.cos(rotation)
+
+                #sec = 1/math.cos(2 * rotation)
+
+                #new_width = sec*(cos*width+sin*height)
+                #new_height = sec*(cos*height-sin*width)
+
+                #updated_data[i] = {}
+                #updated_data[i]['height'] = new_height
+                #updated_data[i]['width'] = new_width
+                #updated_data[i]['rotation'] = rotation
+                #print(f'Height{height}')
+                #print(f'New height: {new_height}')
+                #print(f'Width: {width}')
+                #print(f'New width: {new_width}')
+                #print(f'Rotation: {rotation}')
 
             for i in range(1, len(match_data)+1):
                 match_data[i]['bbox']['rectangle']['height'] = updated_data[i]['height']
                 match_data[i]['bbox']['rectangle']['width'] = updated_data[i]['width']
                 match_data[i]['bbox']['rectangle']['rotation'] = updated_data[i]['rotation']
 
-        
         find_intersects(match_data)
         find_corners(match_data)
         # Task 2:
