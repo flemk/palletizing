@@ -69,7 +69,6 @@ def calculate_true_dimensions(coordinates):
 
     return true_width, true_height, rotation_angle
 
-
 def calculate_centroid(points):
     x_coords = [p[0] for p in points]
     y_coords = [p[1] for p in points]
@@ -83,12 +82,12 @@ def angle_from_centroid(point, centroid):
 def minimum_bounding_rectangle(points):
     centroid = calculate_centroid(points)
     points.sort(key=lambda p: angle_from_centroid(p, centroid))
-    
+
     min_x = min(p[0] for p in points)
     max_x = max(p[0] for p in points)
     min_y = min(p[1] for p in points)
     max_y = max(p[1] for p in points)
-    
+
     return [(min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)]
 
 # Actual Program
@@ -530,7 +529,6 @@ class App:
 
                 bounding_rectangle = minimum_bounding_rectangle(coordinates)
                 bounding_rectangle_center = calculate_centroid(bounding_rectangle)
-                bounding_rectangle_rotation = angle_from_centroid(bounding_rectangle[0], bounding_rectangle_center)
                 bounding_rectangle_width, bounding_rectangle_height, bounding_rectangle_rotation = calculate_true_dimensions(coordinates)
 
                 updated_data[i] = {}
