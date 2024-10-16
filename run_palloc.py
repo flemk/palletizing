@@ -146,10 +146,11 @@ class App:
 
     def get_boxes(self) -> List[Box]:
         boxes = []
-        for _, box in self.calculated_boxes:
+        for _, box in self.calculated_boxes.items():
+            print(box)
             center = Vec2(box['x'], box['y'])
             dimensions = Vec2(box['width'], box['height'])
-            boxes.append(Box(center, dimensions, box['z'], box['rotation']))
+            boxes.append(Box(center, dimensions, box['z_height'], box['rotation']))
         return boxes
 
     def toggle_run(self):
@@ -555,6 +556,9 @@ class App:
                 updated_data[i]['height'] = bounding_rectangle_height
                 updated_data[i]['width'] = bounding_rectangle_width
                 updated_data[i]['rotation'] = bounding_rectangle_rotation
+                updated_data[i]['x'] = bounding_rectangle_center[0]
+                updated_data[i]['y'] = bounding_rectangle_center[1]
+                updated_data[i]['z_height'] = match_data[i]['toolFrame']['z']
 
             for i in range(1, len(match_data)+1):
                 match_data[i]['bbox']['rectangle']['height'] = updated_data[i]['height']
