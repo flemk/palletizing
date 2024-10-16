@@ -63,7 +63,7 @@ class App:
         self.run_once_button.pack(side=tk.LEFT)
 
         self.file_path = tk.Entry(self.bottom_frame)
-        self.file_path.insert(DEFAULT_FILE_PATH)
+        self.file_path.insert(0, DEFAULT_FILE_PATH)
         self.file_path.pack(side=tk.LEFT)
 
         self.load_file = tk.Button(self.bottom_frame, text="load file", command=self.load_from_file)
