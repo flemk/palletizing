@@ -3,6 +3,9 @@ file containing a class for defining a box alonsgside
 with it's dimensions
 """
 from typing import Tuple, List
+from enum import Enum
+
+from docutils.nodes import target
 
 
 class Box:
@@ -45,6 +48,13 @@ class Box:
         """
         raise NotImplementedError
 
+class BoxAction(Enum):
+    """
+    Enum determining actions to do with packets
+    """
+    PLACE = 0  # just place the package to the target coordinates
+    ROTATE_90 = 1  # rotate the package by 90 degrees before placing it down
+
 def sort_by_size(boxes: List[Box], descending: bool = True) -> List[Box]:
     """
     sorts the given boxes by their size in descending order.
@@ -54,3 +64,31 @@ def sort_by_size(boxes: List[Box], descending: bool = True) -> List[Box]:
     :return:
     """
     return sorted(boxes, key=lambda box: box.get_volume(), reverse=descending)
+
+def determine_positions_easy(target_area: Tuple[int, int, int, int],
+                       boxes: List[Box]) -> List[Tuple[int, int, BoxAction]]:
+    """
+    given a set of boxes, determine the positions to put the boxes to
+
+    Basic algorithm:
+    1. Take largest box from the list and place it in the top left corner
+    2. Take next box place it right to the first box, if there is no space in the row, place it in the next one
+       Check that there is space and make sure, that to remember the highest box during placement
+       to determine the starting point of the next row
+    3. repeat until all boxes are placed
+
+    :param target_area: (x1, y1, x2, y2) of a rectangular area to put the boxes into
+    :param boxes: The boxes to place into the target area
+    :return: List of (x,y, action) positions of the Boxes to be placed to. Position is the center
+    """
+
+    MARGIN_TO_EDGE: int = 10  # distance of the boxes to the edges of the placement area
+    MARGIN_INTER: int = 10  # distance of the boxes to each other
+
+    target_coords = []
+
+    for i, box in enumerate(boxes):
+        if i == 0:
+
+
+    raise NotImplementedError
