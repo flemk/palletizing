@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageTk, ImageColor
 
 # Configuration
 DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
-DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/2024-10-16_14:47-match.png"
+DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/three_boxes.png"
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -82,6 +82,7 @@ class App:
 
         self.bbox_overlaps = {}
         self.pre_processed_corners = {}
+        self.calculated_boxes = {}
 
     def toggle_run(self):
         # Called when Run toggle is pressed
@@ -255,11 +256,16 @@ class App:
             bbox = match_info["bbox"]["rectangle"]
             x = bbox["x"]
             y = bbox["y"]
+            # width = bbox["width"]
+            # height = bbox["height"]
+            # rotation = bbox["rotation"]
+            # self.draw_rotated_rectangle(temp_draw, x, y, width, height, rotation, outline=color)
+
+            bbox = self.calculated_boxes[match_id]
             width = bbox["width"]
             height = bbox["height"]
             rotation = bbox["rotation"]
             self.draw_rotated_rectangle(temp_draw, x, y, width, height, rotation, outline=color)
-
             
             # Draw regions for each match
             region = match_info["bbox"]["region"]
@@ -400,7 +406,6 @@ class App:
                 # Left, Right, Top, Bottom
                 coordinates = [[min_x, max_y], [(max_x+min_x)/2, max_y], [max_x, max_y], [(segments_x_stop[0]+segments_x_start[0])/2, min_y]]
                 for start, stop, y in zip(segments_x_start, segments_x_stop, segments_y):
-                    
                     significance = stop-start
                     if (start < coordinates[0][0] and significance > 3):
                         coordinates[0] = [start, y]
@@ -410,6 +415,7 @@ class App:
                         coordinates[1] = [stop, y]
                         print(f"Biggest x: {[stop, y]}")
                 self.pre_processed_corners[i] = coordinates
+
                 for j in range(1, len(match_data)+1):
                     if (i == j):
                         continue
@@ -491,8 +497,8 @@ class App:
                             delta_y = pref_tb_y-bbox_y
                             bad_tb[1] = bbox_y - delta_y
 
-                dx = coordinates[1][0] - coordinates[2][0] # Right - Top
-                dy = coordinates[1][1] - coordinates[2][1] # Right - Top
+                dx = coordinates[1][0] - coordinates[3][0] # Right - Top
+                dy = coordinates[1][1] - coordinates[3][1] # Right - Top
 
                 print(f'dx1: {dx}')
                 print(f'dy1: {dy}')
@@ -506,14 +512,11 @@ class App:
 
                 new_height = math.sqrt(dx**2+dy**2)
 
-                
                 sin = math.sin(rotation)
                 cos = math.cos(rotation)
 
-                sec = 1/math.cos(2*rotation)
-
-                new_width = sec*(cos*width+sin*height)
-                new_height = sec*(cos*height-sin*width)
+                new_width = (1/((cos**2)-(sin**2))) * (width*cos - height*sin)
+                new_height = (1/((sin**2)-(cos**2))) * (width*sin - height*cos)
 
                 updated_data[i] = {}
                 updated_data[i]['height'] = new_height
@@ -525,10 +528,11 @@ class App:
                 print(f'New width: {new_width}')
                 print(f'Rotation: {rotation}')
 
-            for i in range(1, len(match_data)+1):
-                match_data[i]['bbox']['rectangle']['height'] = updated_data[i]['height']
-                match_data[i]['bbox']['rectangle']['width'] = updated_data[i]['width']
-                match_data[i]['bbox']['rectangle']['rotation'] = updated_data[i]['rotation']
+            self.calculated_boxes = updated_data
+            # for i in range(1, len(match_data)+1):
+            #     match_data[i]['bbox']['rectangle']['height'] = updated_data[i]['height']
+            #     match_data[i]['bbox']['rectangle']['width'] = updated_data[i]['width']
+            #     match_data[i]['bbox']['rectangle']['rotation'] = updated_data[i]['rotation']
 
         
         find_intersects(match_data)
