@@ -141,4 +141,38 @@ def determine_positions_easy(target_area: Tuple[Vec2, Vec2],
     return target_coords
 
 if __name__ == '__main__':
-    b1 = Box()
+    from tkinter import Toplevel, PhotoImage, Canvas
+    import tkinter as tk
+
+    # define some sample boxes and check if the stacking works
+    target_area = (Vec2(0,0), Vec2(200, 400))
+
+    b1 = Box(Vec2(20, 20), Vec2(60, 60), 20,32.8)
+    b2 = Box(Vec2(50, 20), Vec2(30, 40), 20, 10.6)
+    b3 = Box(Vec2(50, 80), Vec2(10, 60), 20, 45)
+    b4 = Box(Vec2(20, 20), Vec2(60, 60), 20,32.8)
+    b5 = Box(Vec2(20, 20), Vec2(60, 60), 20,32.8)
+    b6 = Box(Vec2(20, 20), Vec2(60, 60), 20,32.8)
+
+
+
+    boxes = sort_by_size([b1, b2, b3, b4, b5, b6], descending=True)
+
+    target = determine_positions_easy(target_area, boxes)
+
+    for i, box in enumerate(target):
+        print(f"Box {i+1}: X: {box[0].x}, Y:{box[0].y}, action: {box[1]}")
+
+    root = tk.Tk()
+    root.title("Debug placement")
+    root.geometry(f"{target_area[1].x-target_area[0].x}x{target_area[1].y-target_area[0].y}")  # Set window size
+
+    # Create a canvas widget
+    canvas = tk.Canvas(root, bg="white")
+    canvas.pack(fill=tk.BOTH, expand=True)
+
+    for i, box in enumerate(target):
+        canvas.create_rectangle(box[0].x- boxes[i].width//2, box[0].y - boxes[i].height//2, box[0].x + boxes[i].width//2, box[0].y + boxes[i].height//2)
+
+    # Start the Tkinter event loop
+    root.mainloop()
