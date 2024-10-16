@@ -270,8 +270,11 @@ class App:
             #     for i in range(start, stop):
             #         # Draw the line with transparency on the temporary image
             #         temp_draw.line((i, y, i + 1, y), fill=rgba_color, width=1)
-            for coordinates in self.pre_processed_corners[match_id]:
-                temp_draw.circle(coordinates, radius=3, fill='black', width=3)
+            coordinates = self.pre_processed_corners[match_id]
+            temp_draw.circle(coordinates[0], radius=3, fill='black', width=3) 
+            temp_draw.circle(coordinates[1], radius=3, fill='red', width=3)
+            temp_draw.circle(coordinates[2], radius=3, fill='blue', width=3)
+            temp_draw.circle(coordinates[3], radius=3, fill='yellow', width=3)
             # Composite the temporary image onto the canvas image
             canvas_image = Image.alpha_composite(canvas_image, temp_image)
             
@@ -408,7 +411,6 @@ class App:
                         print(f"Biggest x: {[stop, y]}")
                 self.pre_processed_corners[i] = coordinates
                 for j in range(1, len(match_data)+1):
-                    break
                     if (i == j):
                         continue
 
@@ -499,8 +501,8 @@ class App:
 
                 new_width = math.sqrt(dx**2 + dy**2)
 
-                dx = coordinates[2][0] - coordinates[0][0] # Top - Left
-                dy = coordinates[2][1] - coordinates[0][1] # Top - Left
+                dx = coordinates[3][0] - coordinates[0][0] # Top - Left
+                dy = coordinates[3][1] - coordinates[0][1] # Top - Left
 
                 new_height = math.sqrt(dx**2+dy**2)
 
@@ -511,7 +513,7 @@ class App:
                 sec = 1/math.cos(2*rotation)
 
                 new_width = sec*(cos*width+sin*height)
-                new_height = sec*(cos*height+sin*width)
+                new_height = sec*(cos*height-sin*width)
 
                 updated_data[i] = {}
                 updated_data[i]['height'] = new_height
