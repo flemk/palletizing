@@ -556,15 +556,17 @@ class App:
                 updated_data[i]['height'] = bounding_rectangle_height
                 updated_data[i]['width'] = bounding_rectangle_width
                 updated_data[i]['rotation'] = bounding_rectangle_rotation
-                updated_data[i]['x'] = bounding_rectangle_center[0]
-                updated_data[i]['y'] = bounding_rectangle_center[1]
-                updated_data[i]['z_height'] = match_data[i]['toolFrame']['z']
+                updated_data[i]['x'] = match_data[i]['partFrame']['x']
+                updated_data[i]['y'] = match_data[i]['partFrame']['y']
+                updated_data[i]['z_height'] = match_data[i]['partFrame']['z']
 
             for i in range(1, len(match_data)+1):
                 match_data[i]['bbox']['rectangle']['height'] = updated_data[i]['height']
                 match_data[i]['bbox']['rectangle']['width'] = updated_data[i]['width']
                 match_data[i]['bbox']['rectangle']['rotation'] = updated_data[i]['rotation']
+        
             self.calculated_boxes = updated_data
+        
         find_intersects(match_data)
         find_corners(match_data)
         # Task 2:
