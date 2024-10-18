@@ -2,7 +2,6 @@
 #              It serves as a template for users to implement their own processing code.
 #              The script is designed to minimize dependencies.
 import tkinter as tk
-from base64 import b64decode
 from tkinter import Toplevel, PhotoImage, Canvas
 import base64
 import datetime
@@ -12,15 +11,14 @@ import time
 import math
 import select
 import json
+from threading import Thread, current_thread
+from PIL import Image, ImageDraw, ImageTk, ImageColor # If the Pillow library is not installed, run the following command: "pip install pillow"
 from box import Box
 from util import Vec2
-from threading import Thread, current_thread
-# If the Pillow library is not installed, run the following command: "pip install pillow"
-from PIL import Image, ImageDraw, ImageTk, ImageColor
 
 # Configuration
 DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
-DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/three_boxes.png"
+DEFAULT_FILE_PATH = "/path/to/checkpoints"
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -158,8 +156,6 @@ class App:
         ip = self.ip_entry.get()
         self.thread = Thread(target=self.run_loop, args=(ip, True))
         self.thread.start()
-
-
 
     def print_to_text_box(self, text):
         # Print text to GUI
@@ -385,25 +381,13 @@ class App:
         self.process_match_data(match_data, color_image)
 
     def process_match_data(self, match_data, color_image):
-        # Put your processing code here...
-        # Task 1:
-        # For each match, find its real world top side coverage represented as a new
-        # rectangle with position, size, and rotation. Suggested data to use is:
-        #   * 2D bounding box from deep neural network provided at: match_data[1..n]["bbox"]["rectangle"]
-        #   * Region given as (run length encoded segments) pixels in 3D space that
-        #     lie within the match plane estimate and are confined by the bounding box.
-        #     Region is provided at: match_data[1..n]["bbox"]["region"]
-        #
-        # Note:
-        # The bounding box and the region may overlap, making it challenging to
-        # identify the pixels that belong to the top side of each match.
         def find_intersects(match_data):
             box_len = len(match_data)
             print(f"Boxes: {box_len}")
             print(match_data)
             for i in range(1, box_len):
                 bbox_1 = match_data[i]['bbox']['rectangle']
-                x1 = bbox_1['x'] 
+                x1 = bbox_1['x']
                 y1 = bbox_1['y']
                 width1 = bbox_1['width']
                 height1 = bbox_1['height']
@@ -414,9 +398,9 @@ class App:
                     width2 = bbox_2['width']
                     height2 = bbox_2['height']
 
-                    if (abs(x1-x2) < (width1+width2)/2
-                        and abs(y1-y2) < (height1+height2)/2):
-                        self.bbox_overlaps[frozenset({i,j})] = True
+                    if (abs(x1 - x2) < (width1+width2) / 2
+                        and abs(y1 - y2) < (height1 + height2) / 2):
+                        self.bbox_overlaps[frozenset({i, j})] = True
 
                     else:
                         self.bbox_overlaps[frozenset({i,j})] = False
@@ -445,11 +429,12 @@ class App:
 
                 # Left, Right, Top, Bottom
                 coordinates = [[min_x, max_y],
-                               [(max_x+min_x)/2, max_y],
+                               [(max_x + min_x) / 2, max_y],
                                [max_x, max_y],
-                               [(segments_x_stop[0]+segments_x_start[0])/2, min_y]]
+                               [(segments_x_stop[0] + segments_x_start[0]) / 2, min_y]]
                 for start, stop, y in zip(segments_x_start, segments_x_stop, segments_y):
-                    significance = stop-start
+                    significance = stop - start
+                    # Significance: Is it only one rouge pixel or is it a "real" connected pixel?
                     if (start < coordinates[0][0] and significance > 3):
                         coordinates[0] = [start, y]
                         print(f"Smallest x: {[start, y]}")
@@ -458,19 +443,21 @@ class App:
                         coordinates[1] = [stop, y]
                         print(f"Biggest x: {[stop, y]}")
                 self.pre_processed_corners[i] = coordinates
-                for j in range(1, len(match_data)+1):
+
+                for j in range(1, len(match_data) + 1):
+                    # If a corner is overlapping with another box, recreate it using trigonometry
                     if (i == j):
                         continue
 
-                    if (self.bbox_overlaps[frozenset({i,j})]):
+                    if (self.bbox_overlaps[frozenset({i, j})]):
                         other_bbox = match_data[j]['bbox']['rectangle']
                         other_x = other_bbox['x']
                         other_y = other_bbox['y']
                         other_width = other_bbox['width']
                         other_height = other_bbox['height']
-                        
-                        delta_top = (coordinates[2][1] - (bbox_y + (height/2)))
-                        delta_bot = (coordinates[3][1] - (bbox_y - (height/2)))
+
+                        delta_top = (coordinates[2][1] - (bbox_y + (height / 2)))
+                        delta_bot = (coordinates[3][1] - (bbox_y - (height / 2)))
 
                         if (delta_top < delta_bot):
                             pref_tb = coordinates[2]
@@ -479,8 +466,8 @@ class App:
                             pref_tb = coordinates[3]
                             bad_tb = coordinates[2]
 
-                        delta_left = (coordinates[0][0] - (bbox_x - (width/2)))
-                        delta_right = (coordinates[1][0] - (bbox_x + (width/2)))
+                        delta_left = (coordinates[0][0] - (bbox_x - (width / 2)))
+                        delta_right = (coordinates[1][0] - (bbox_x + (width / 2)))
 
                         if (delta_left < delta_right): # Left corner closer to bbox than right corner
                             pref_lr = coordinates[0]
@@ -491,81 +478,69 @@ class App:
 
                         pref_lr_x = pref_lr[0]
                         pref_lr_y = pref_lr[1]
-
                         bad_lr_x = bad_lr[0]
                         bad_lr_y = bad_lr[1]
 
                         # If the good corner is in a different region, recreate it using the worse corner
-                        if (abs(pref_lr_x-other_x) < other_width 
-                            and abs(pref_lr_y-other_y) < other_height):
-
+                        if (abs(pref_lr_x - other_x) < other_width
+                            and abs(pref_lr_y - other_y) < other_height):
                             delta_x = bad_lr_x-bbox_x
                             pref_lr[0] = bbox_x - delta_x
-
                             delta_y = bad_lr_y-bbox_y
                             pref_lr[1] = bbox_y - delta_y
 
-                        # Recreate right corner from left. Not necessessarily necessary, so it might cause problems.
-                        elif(abs(bad_lr_x-other_x) < other_width
-                             and abs(bad_lr_y-other_y) < other_height):
-
+                        # Recreate right corner from left. Not necessarily necessary, so it might cause problems.
+                        elif(abs(bad_lr_x - other_x) < other_width
+                             and abs(bad_lr_y - other_y) < other_height):
                             delta_x = pref_lr_x-bbox_x
                             bad_lr[0] = bbox_x - delta_x
-
                             delta_y = pref_lr_y-bbox_y
                             bad_lr[1] = bbox_y - delta_y
 
                         pref_tb_x = pref_tb[0]
                         pref_tb_y = pref_tb[1]
-
                         bad_tb_x = bad_tb[0]
                         bad_tb_y = bad_tb[1]
 
-                        if (abs(pref_tb_x-other_x) < other_width
-                            and abs(pref_tb_y-other_y) < other_height):
-
+                        if (abs(pref_tb_x - other_x) < other_width
+                            and abs(pref_tb_y - other_y) < other_height):
                             delta_x = bad_tb_x - bbox_x
                             pref_tb[0] = bbox_x - delta_x
-
                             delta_y = bad_tb_y-bbox_y
                             pref_tb[1] = bbox_y - delta_y
-
-                        elif(abs(bad_tb_x-other_x) < other_width 
-                            and abs(bad_tb_y-other_y) < other_height):
-
+                        elif(abs(bad_tb_x - other_x) < other_width 
+                            and abs(bad_tb_y - other_y) < other_height):
                             delta_x = pref_tb_x-bbox_x
                             bad_tb[0] = bbox_x - delta_x
-
                             delta_y = pref_tb_y-bbox_y
                             bad_tb[1] = bbox_y - delta_y
 
+                # Calculate the minimum bounding rectangle
                 bounding_rectangle = minimum_bounding_rectangle(coordinates)
                 bounding_rectangle_center = calculate_centroid(bounding_rectangle)
-                bounding_rectangle_rotation = angle_from_centroid(bounding_rectangle[0], bounding_rectangle_center)
-                bounding_rectangle_width, bounding_rectangle_height, bounding_rectangle_rotation = calculate_true_dimensions(coordinates)
+                bounding_rectangle_rotation = angle_from_centroid(
+                    bounding_rectangle[0],
+                    bounding_rectangle_center)
+                bounding_rectangle_width, \
+                    bounding_rectangle_height, \
+                    bounding_rectangle_rotation = calculate_true_dimensions(coordinates)
 
+                # Expose the data
                 updated_data[i] = {}
                 updated_data[i]['height'] = bounding_rectangle_height
                 updated_data[i]['width'] = bounding_rectangle_width
                 updated_data[i]['rotation'] = bounding_rectangle_rotation
 
-            for i in range(1, len(match_data)+1):
+            for i in range(1, len(match_data) + 1):
                 match_data[i]['bbox']['rectangle']['height'] = updated_data[i]['height']
                 match_data[i]['bbox']['rectangle']['width'] = updated_data[i]['width']
                 match_data[i]['bbox']['rectangle']['rotation'] = updated_data[i]['rotation']
+
             self.calculated_boxes = updated_data
+
         find_intersects(match_data)
         find_corners(match_data)
-        # Task 2:
-        # Correlate the derived 2D rectangles with the 3D bounding
-        # boxes and prepare for providing correctly rotated pick positions.
 
-        # Task 3:
-        # Implement a placement algorithm that places the boxes in a 
-        # packing pattern.
-
-        # Task 4:
-        # ...
         if not self.loading:
             self.save_checkpoint(match_data, color_image, f"{os.getcwd()}/checkpoints")
         self.show_image(match_data, color_image)
@@ -573,7 +548,7 @@ class App:
     def save_checkpoint(self, match_data: dict, color_image: Image, path: str) -> None:
         """
         take the current taken match data and image and save it to a file to speed-up processing tests
-        :param match_data: the dict containg the bounding boxes and pixel data for each match
+        :param match_data: the dict contaning the bounding boxes and pixel data for each match
         :param color_image: the raw image in color
         :param path: folder to path to store the images to
         :return:
