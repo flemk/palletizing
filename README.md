@@ -35,8 +35,10 @@ Also since the code was created during a Hackathon, the code quality is relatabl
         - Eiter: Omitting overlapped areas entirely (gradient descent should still find optimal solution)
         - Or: Introducing weights, where pixels inside overlapping areas are not weighted / considered as much as "clear cases"
 
-## File overview
+## Additional features
+- We added a checkpoint functionality to save images / data from the camera locally, to not always connect to the camera and fetch new data. Decreasing testing time.
 
+## File overview
 - `box.py`: Interface for defining a box and sorting a list of boxes by size  
 - `robot_interaction.py`: Code for interacting with the robot   
 - `run_palloc.py`: Code for interacting with the camera and doing box detection
