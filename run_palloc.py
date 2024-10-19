@@ -18,7 +18,7 @@ from util import Vec2
 
 # Configuration
 DEFAULT_IP_ADDRESS = '172.16.1.142'  # IP address
-DEFAULT_FILE_PATH = "/path/to/checkpoints"
+DEFAULT_FILE_PATH = "/home/jonatan/palletizing/checkpoints/three_boxes.png"
 PORT = 14158  # Port
 JOB = 1  # Job number
 ADJUST_EXPOSURE_MESSAGE = f'{{"name": "Job.Image.Acquire", "job": {JOB}}}'
@@ -79,8 +79,7 @@ def calculate_centroid(points):
 def angle_from_centroid(point, centroid):
     return math.atan2(point[1] - centroid[1], point[0] - centroid[0])
 
-def minimum_bounding_rectangle(points):
-    centroid = calculate_centroid(points)
+def minimum_bounding_rectangle(points, centroid):
     points.sort(key=lambda p: angle_from_centroid(p, centroid))
 
     min_x = min(p[0] for p in points)
@@ -516,14 +515,20 @@ class App:
                             bad_tb[1] = bbox_y - delta_y
 
                 # Calculate the minimum bounding rectangle
-                bounding_rectangle = minimum_bounding_rectangle(coordinates)
-                bounding_rectangle_center = calculate_centroid(bounding_rectangle)
+                bounding_rectangle = minimum_bounding_rectangle(coordinates, (bbox_x,bbox_y))
+                bounding_rectangle_center = (bbox_x, bbox_y)
                 bounding_rectangle_rotation = angle_from_centroid(
                     bounding_rectangle[0],
                     bounding_rectangle_center)
                 bounding_rectangle_width, \
                     bounding_rectangle_height, \
                     bounding_rectangle_rotation = calculate_true_dimensions(coordinates)
+
+                sin = math.sin(bounding_rectangle_rotation)
+                cos = math.cos(bounding_rectangle_rotation)
+
+                bounding_rectangle_width = (1/((cos**2)-(sin**2))) * (width*cos - height*sin)
+                bounding_rectangle_height = (1/((sin**2)-(cos**2))) * (width*sin - height*cos)
 
                 # Expose the data
                 updated_data[i] = {}
